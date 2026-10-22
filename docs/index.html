@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brave Cast</title>
+<style>
+  :root { --bg:#f6f5f2; --card:#fff; --text:#1d1d1f; --muted:#6b6b70; --accent:#fb542b; --border:#e3e1dc; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141416; --card:#1e1e22; --text:#f2f2f4; --muted:#9a9aa2; --border:#2e2e34; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg);
+         color:var(--text); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding:16px; }
+  .card { width:100%; max-width:520px; background:var(--card); border:1px solid var(--border);
+          border-radius:16px; padding:28px; }
+  h1 { margin:0 0 4px; font-size:22px; }
+  p.sub { margin:0 0 20px; color:var(--muted); font-size:14px; }
+  form { display:flex; gap:8px; }
+  input[type=url] { flex:1; min-width:0; padding:12px 14px; border-radius:10px; border:1px solid var(--border);
+                    background:transparent; color:inherit; font-size:15px; }
+  button { padding:12px 20px; border:0; border-radius:10px; background:var(--accent); color:#fff;
+           font-weight:600; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .opts { display:flex; gap:16px; margin-top:14px; font-size:14px; color:var(--muted); }
+  #status { margin-top:16px; font-size:14px; min-height:1.5em; }
+  .ok { color:#2e9e5b; } .err { color:#d93a3a; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:6px; }
+  .dot.on { background:#2e9e5b; } .dot.off { background:#d93a3a; }
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>Brave Cast</h1>
+  <p class="sub"><span id="dot" class="dot"></span><span id="server">Checking local server…</span></p>
+  <form id="f">
+    <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required autofocus>
+    <button id="play" type="submit">Play</button>
+  </form>
+  <div class="opts">
+    <label><input id="app" type="checkbox" checked> Clean window</label>
+    <label><input id="fs" type="checkbox"> Fullscreen</label>
+  </div>
+  <div id="status"></div>
+</main>
+<script>
+  // Served by the Python app -> same origin. Served from GitHub Pages -> talk to localhost.
+  const LOCAL = ["127.0.0.1", "localhost"].includes(location.hostname);
+  const API = LOCAL ? "" : "http://127.0.0.1:8765";
+  const $ = id => document.getElementById(id);
+
+  async function checkServer() {
+    try {
+      const r = await fetch(API + "/health");
+      if (!r.ok) throw 0;
+      $("dot").className = "dot on"; $("server").textContent = "Local server connected";
+    } catch {
+      $("dot").className = "dot off"; $("server").textContent = "Local server not running — start it with: python app.py";
+    }
+  }
+
+  $("f").addEventListener("submit", async e => {
+    e.preventDefault();
+    $("play").disabled = true; $("status").textContent = "";
+    try {
+      const r = await fetch(API + "/play", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: $("url").value, app_window: $("app").checked, fullscreen: $("fs").checked }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || "Request failed");
+      $("status").className = "ok"; $("status").textContent = "Opened in Brave ▶";
+    } catch (err) {
+      $("status").className = "err"; $("status").textContent = err.message || "Could not reach the local server.";
+    } finally {
+      $("play").disabled = false;
+    }
+  });
+
+  checkServer();
+</script>
+</body>
+</html>
